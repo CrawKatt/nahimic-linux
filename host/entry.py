@@ -43,7 +43,7 @@ def initialize():
     marker(RUNTIME / "prefix/.nahimic-linux-owner")
     if not (RUNTIME / "preferences.json").exists():
         atomic_json(RUNTIME / "preferences.json", {"enabled": True})
-    atomic_json(DATA / "installation.json", {"version": "0.3.0", "target": target})
+    atomic_json(DATA / "installation.json", {"version": "0.3.1", "target": target})
     return target
 
 

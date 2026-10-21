@@ -17,16 +17,19 @@ from run_local import main, validate_session
 
 MECHREVO = {'name': 'speaker', 'active_port': '[Out] Speaker',
             'properties': {'alsa.components': 'HDA:14f11f87,1d05e022,00100100'}}
+MECHREVO_P916F = {'name': 'speaker', 'active_port': '[Out] Speaker',
+                 'properties': {'alsa.components': 'HDA:10ec0256,1d05e004,00100002'}}
 LENOVO = {'name': 'speaker', 'active_port': 'analog-output-speaker',
           'properties': {'alsa.components': 'HDA:10ec0257,17aa3dcb,00100001 HDA:80862818,80860101,00100000'}}
 CASES = ((MECHREVO, '.', '1D05E022_Speakers.nsx'),
+         (MECHREVO_P916F, '.', '1D05E004_InternalSpeakers.nsx'),
          (LENOVO, '17AA3DCB', '17AA3DCB_InternalSpeakers.nsx'))
 
 
 class DeviceTest(unittest.TestCase):
     def test_exact_codec_subsystem_and_speaker_ports(self):
         for sink, directory, filename in CASES:
-            with self.subTest(directory=directory):
+            with self.subTest(device=filename):
                 self.assertEqual(speaker_config(sink), (directory, filename))
                 for port in ('[Out] Speaker', 'analog-output-speaker'):
                     variant = copy.deepcopy(sink)
@@ -45,7 +48,7 @@ class DeviceTest(unittest.TestCase):
         for sink, _, _ in CASES:
             with patch('entry.pulse', return_value=json.dumps([sink, {'name': 'hdmi'}])):
                 self.assertEqual(detect(), 'speaker')
-        for sinks in ([], [MECHREVO, LENOVO]):
+        for sinks in ([], [MECHREVO, LENOVO], [MECHREVO, MECHREVO_P916F]):
             with patch('entry.pulse', return_value=json.dumps(sinks)), self.assertRaises(RuntimeError):
                 detect()
 
@@ -54,7 +57,7 @@ class DeviceTest(unittest.TestCase):
             saved = {'settings_initialized': True, 'target': sink['name'],
                      'target_before': sink, 'original_dll_sha256': 'original'}
             validate_session(saved, sink, 'original')  # Also accepts the pre-change session format.
-            for other in (MECHREVO, LENOVO):
+            for other, _, _ in CASES:
                 if other == sink:
                     continue
                 with self.assertRaises(ValueError):
@@ -74,15 +77,15 @@ class DeviceTest(unittest.TestCase):
                 (root / executable).touch()
             for index, (_, folder, filename) in enumerate(CASES):
                 factory = root / 'factory' / folder
-                (factory / 'Devices').mkdir(parents=True)
-                (factory / 'AudioProfiles').mkdir()
+                (factory / 'Devices').mkdir(parents=True, exist_ok=True)
+                (factory / 'AudioProfiles').mkdir(exist_ok=True)
                 (factory / 'Global.nsx').write_text('<nhSettings><Settings/></nhSettings>')
                 (factory / 'Metadata.nsx').write_text('<nhSettings><Data><DefaultProfileId>'
                     '<Value>music</Value></DefaultProfileId></Data></nhSettings>')
                 (factory / 'Devices' / filename).write_text('<nhSettings><Data><ID>'
                     f'<Value>device-{index}</Value></ID></Data></nhSettings>')
                 (factory / 'AudioProfiles/Music.nsx').write_text('<nhSettings>'
-                    f'<Settings><OEM Value="{index}"/></Settings>'
+                    f'<Settings><OEM Value="{folder}"/></Settings>'
                     '<Data><ID><Value>music</Value></ID></Data></nhSettings>')
             for index, (sink, folder, filename) in enumerate(CASES):
                 work = root / f'state-{index}'
@@ -98,7 +101,7 @@ class DeviceTest(unittest.TestCase):
                         kwargs['stderr'].write(b'volume_state_ready\n')
                         kwargs['stderr'].flush()
                         return SimpleNamespace(poll=lambda: 0, wait=lambda **kw: 0, returncode=0)
-                    self.assertEqual(args[args.index('--device-file') + 1], 'Devices\\' + filename)
+                    self.assertEqual(args[args.index('--device-file') + 1], filename)
                     self.assertEqual(args[args.index('--device-id') + 1], f'device-{index}')
                     raise BeforeAudio()
 
@@ -107,13 +110,15 @@ class DeviceTest(unittest.TestCase):
                      patch('run_local.subprocess.Popen', side_effect=start), self.assertRaises(BeforeAudio):
                     main()
                 prepared = work / 'settings'
-                self.assertEqual([p.name for p in (prepared / 'Devices').iterdir()], [filename])
                 factory = root / 'factory' / folder
+                device_files = {p.name for p in (factory / 'Devices').iterdir()}
+                self.assertEqual({p.name for p in (prepared / 'Devices').iterdir()}, device_files)
                 self.assertEqual((prepared / 'AudioProfiles/Music.nsx').read_bytes(),
                                  (factory / 'AudioProfiles/Music.nsx').read_bytes())
                 manifest = json.loads((prepared / 'source-manifest.json').read_text())
                 self.assertEqual(set(manifest['originals']),
-                                 {'Global.nsx', 'Metadata.nsx', f'Devices/{filename}', 'AudioProfiles/Music.nsx'})
+                                 {'Global.nsx', 'Metadata.nsx', 'AudioProfiles/Music.nsx'} |
+                                 {f'Devices/{name}' for name in device_files})
                 self.assertEqual(manifest['originals'][f'Devices/{filename}'],
                                  hashlib.sha256((factory / 'Devices' / filename).read_bytes()).hexdigest())
 

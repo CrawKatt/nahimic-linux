@@ -26,6 +26,7 @@ class OutputUnavailable(RuntimeError):
 
 SPEAKER_CONFIGS = {
     "hda:14f11f87,1d05e022,": (".", "1D05E022_Speakers.nsx"),
+    "hda:10ec0256,1d05e004,": (".", "1D05E004_InternalSpeakers.nsx"),
     "hda:10ec0257,17aa3dcb,": ("17AA3DCB", "17AA3DCB_InternalSpeakers.nsx"),
 }
 

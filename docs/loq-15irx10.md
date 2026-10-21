@@ -35,7 +35,7 @@ GUID, then runs the original SFX/MFX/EFX chain. Real endpoint volume comes from
 `pulse_state`; PipeWire/WirePlumber route the speaker filter. The UI controls
 Nahimic through `apo_control.exe`.
 
-The extension adds two entries in a small table in `desktop_audio.py`, using
+The initial extension used two entries in a small table in `desktop_audio.py`, using
 the exact codec and subsystem pair plus a speaker port. Both the UCM
 `[Out] Speaker` and ACP `analog-output-speaker` names are accepted. Headphones,
 HDMI, USB and unknown codec/subsystem pairs do not select an OEM configuration.
@@ -134,7 +134,7 @@ rtk proxy make
 Tests cover exact hardware and speaker-port selection, rejection of unknown
 devices, the OEM set and filename delivered to the host, preservation of old
 sessions, refusal to reuse another device's settings, and routing/volume policy
-for both models. Existing UI, translations and native volume ABI checks also run.
+for the supported models. Existing UI, translations and native volume ABI checks also run.
 
 ## Stabilization: 2026-09-28
 
@@ -231,6 +231,29 @@ Validation of this revision:
   matched for profile, all parameters, enabled state, volume, mute and device.
 - All ten documented Fish command blocks passed `fish --no-execute`; the
   disruptive commands were only syntax-checked.
+
+## Local upstream merge: 2026-10-21
+
+Integrated upstream `v0.3.1` (`2460f37`) with the local Lenovo changes. The single
+device table now includes MECHREVO P916F (`10ec0256,1d05e004`) alongside Wujie
+14X Pro and the LOQ. Both MECHREVO device files use the upstream factory set;
+the Lenovo device and all four DS575151 profiles remain in their separate set.
+All 25 previous runtime hashes are unchanged; the P916F NSX adds a 26th file.
+
+The launcher adopts upstream's basename-only `--device-file` contract; the host
+adds `Devices\\` and rejects path separators. Saved-session identity checks,
+speaker-port invalidation, paused-stream reporting and service restart handling
+are retained. Upstream's native volume clock fix is also retained: precise time,
+two-second maximum state age and 50 ms maximum future skew. No OEM DSP values
+were changed.
+
+Validation: **54 unittest checks**, `make`, and a fresh local-source
+`makepkg --nodeps --noconfirm` build passed. Portable innoextract 1.9 was used as
+before. All source hashes and all 26 runtime hashes in the resulting package
+matched; the packaged launcher and systemd unit matched the working sources.
+This merge was not installed or tested through live playback. The initial
+physical result above remains the hardware evidence; the merged revision still
+needs the deferred acceptance checks. No push or PR was performed.
 
 ## Deferred physical test procedure (Fish)
 

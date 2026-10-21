@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
-from desktop_audio import DesktopAudio, OutputUnavailable
+from desktop_audio import DesktopAudio, OutputUnavailable, speaker_config, supported_speaker
 from run_local import linked_channels
 
 
@@ -119,6 +119,20 @@ class RoutingTest(unittest.TestCase):
         with self.assertRaises(OutputUnavailable): self.router.tick()
         self.run.assert_not_called()
 
+    def test_each_verified_hardware_keeps_its_own_device_settings(self):
+        alc256 = {'name': 'speaker', 'active_port': '[Out] Speaker',
+                  'properties': {'alsa.components': 'HDA:10ec0256,1d05e004,00100002'}}
+        self.assertEqual(speaker_config(alc256), ('.', '1D05E004_InternalSpeakers.nsx'))
+        self.assertTrue(supported_speaker(alc256))
+        alc256['active_port'] = '[Out] Headphones'
+        self.assertFalse(supported_speaker(alc256))
+        senary = self.physical | {'properties': {'alsa.components': 'HDA:14f11f87,1d05e022,00100100'}}
+        self.assertEqual(speaker_config(senary), ('.', '1D05E022_Speakers.nsx'))
+        hdmi = {'active_port': '[Out] Speaker',
+                'properties': {'alsa.components': 'HDA:1002aa01,00aa0100,00100900'}}
+        self.assertIsNone(speaker_config(hdmi))
+        self.assertFalse(supported_speaker(hdmi))
+
     def test_invalid_target_properties_are_rejected(self):
         self.virtual['properties']['filter.smart.target'] = '{}'
         with self.assertRaises(RuntimeError): self.router.tick()
@@ -140,6 +154,12 @@ class RoutingTest(unittest.TestCase):
         self.assertFalse(linked_channels(graph, 'effect', 'speaker'))
         self.assertFalse(linked_channels(graph.replace('input_FR', 'input_FL'),
                                          'effect', 'speaker', render=False))
+
+
+class MechrevoP916RoutingTest(RoutingTest):
+    def setUp(self):
+        super().setUp()
+        self.physical['properties']['alsa.components'] = 'HDA:10ec0256,1d05e004,00100002'
 
 
 class LenovoRoutingTest(RoutingTest):

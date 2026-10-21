@@ -18,6 +18,7 @@ static pa_mainloop *loop;
 static struct apo_volume_shared *shared;
 static struct apo_volume_state current;
 static const char *target;
+static const char *expected_port;
 static uint32_t sink_index=PA_INVALID_INDEX;
 static int failed, ready;
 static volatile sig_atomic_t stopping;
@@ -38,6 +39,9 @@ static void info(pa_context *context,const pa_sink_info *sink,int eol,void *user
     (void)context;(void)userdata;
     if(eol<0){fail("selected sink query failed");return;}
     if(eol>0){if(!ready)fail("selected sink is absent");return;}
+    if(expected_port && (!sink->active_port || strcmp(sink->active_port->name,expected_port))) {
+        fail("selected speaker port is no longer active");return;
+    }
     if(strcmp(sink->name,target) || sink->volume.channels!=2 ||
        sink->channel_map.map[0]!=PA_CHANNEL_POSITION_FRONT_LEFT ||
        sink->channel_map.map[1]!=PA_CHANNEL_POSITION_FRONT_RIGHT ||
@@ -100,9 +104,10 @@ static void tick(pa_mainloop_api *api,pa_time_event *event,const struct timeval 
 static void stop(int signum){(void)signum;stopping=1;}
 
 int main(int argc,char **argv) {
-    if(argc!=3 || argv[2][0]!='/' || strlen(argv[1])>=sizeof(current.target)){
-        fprintf(stderr,"usage: pulse_state EXACT_SINK /absolute/new/state-file\n");return 2;
+    if((argc!=3 && argc!=4) || argv[2][0]!='/' || strlen(argv[1])>=sizeof(current.target)){
+        fprintf(stderr,"usage: pulse_state EXACT_SINK /absolute/new/state-file [EXPECTED_PORT]\n");return 2;
     }
+    expected_port=argc==4?argv[3]:NULL;
     target=argv[1];strcpy(current.target,target);current.magic=APO_VOLUME_MAGIC;
     int fd=open(argv[2],O_CREAT|O_EXCL|O_RDWR,0600);
     if(fd<0){perror("state file");return 1;}

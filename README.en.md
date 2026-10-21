@@ -22,6 +22,8 @@ Alternatively, use `paru -S nahimic-linux`. Installation downloads the required 
 
 Currently tested on the built-in speakers of the **MECHREVO Wujie 14X Pro (机械革命无界 14X Pro)** with Senary audio, subsystem ID `1D05E022`. Requires x86_64 Linux, PipeWire, PipeWire Pulse, WirePlumber 0.5 or newer, and a systemd user session. The Qt interface works with KDE, GNOME, and other desktop environments that provide these components. Effects attach automatically to the built-in speakers while you select real output devices as usual. Headphones, Bluetooth devices, and HDMI outputs use their own audio paths. Effects resume automatically when the speakers return.
 
+The source tree also includes **Lenovo LOQ 15IRX10 / 83JE** support for Realtek ALC257 (`10EC:0257`, codec subsystem `17AA:3DCB`), using the unchanged device settings and four profiles from Lenovo DS575151. Initial physical validation confirms operational speaker processing and a subjectively significant improvement. Stability testing is ongoing; Windows OEM parity has not been established. See the [device audit and validation notes](docs/loq-15irx10.md).
+
 ## Recommended: let an AI assistant install or adapt it
 
 Send this prompt to Claude Code, Codex, or another AI coding assistant:
@@ -50,7 +52,7 @@ The effects switch applies only to the built-in speakers. Your system manages th
 
 ## Build and install from source
 
-The AUR build recipe is in [packaging/PKGBUILD](packaging/PKGBUILD). Build dependencies include MinGW-w64 GCC, a C compiler, pkg-config, libpulse, Python, and cabextract. Runtime dependencies include Wine, PySide6, PipeWire, PipeWire Pulse, WirePlumber 0.5+, libpulse, and systemd. The PKGBUILD contains the complete package dependency lists.
+The AUR build recipe is in [packaging/PKGBUILD](packaging/PKGBUILD). Build dependencies include MinGW-w64 GCC, a C compiler, pkg-config, libpulse, Python, cabextract, and innoextract. Runtime dependencies include Wine, PySide6, PipeWire, PipeWire Pulse, WirePlumber 0.5+, libpulse, and systemd. The PKGBUILD contains the complete package dependency lists.
 
 ```sh
 git clone https://aur.archlinux.org/nahimic-linux.git
@@ -58,7 +60,7 @@ cd nahimic-linux
 makepkg -si
 ```
 
-The build downloads pinned runtime components from Microsoft Update and the official Nahimic support site, then verifies SHA-256 hashes for the archives and the runtime files used by the application. Run `make` to build the native host components. To inspect the installation layout without installing into the system, run `make DESTDIR=/tmp/nahimic-stage install`. Use the PKGBUILD for a complete installation, including runtime components.
+The build downloads pinned runtime components from Microsoft Update, the official Nahimic support site, and Lenovo DS575151, then verifies SHA-256 hashes for the archives and the runtime files used by the application. Run `make` to build the native host components. To inspect the installation layout without installing into the system, run `make DESTDIR=/tmp/nahimic-stage install`. Use the PKGBUILD for a complete installation, including runtime components.
 
 ## Contribute device support
 

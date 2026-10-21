@@ -20,7 +20,7 @@ def detect():
     sinks = json.loads(pulse("--format=json", "list", "sinks"))
     matches = [s for s in sinks if supported_speaker(s)]
     if len(matches) != 1:
-        raise RuntimeError("未找到受支持的内置扬声器（1D05E022）。请选择扬声器输出后重试。")
+        raise RuntimeError("未找到唯一受支持的内置扬声器。请选择扬声器输出后重试。")
     return matches[0]["name"]
 
 

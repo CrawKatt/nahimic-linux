@@ -24,9 +24,25 @@ class OutputUnavailable(RuntimeError):
     """The configured speaker endpoint is temporarily unavailable."""
 
 
+SPEAKER_CONFIGS = {
+    "hda:14f11f87,1d05e022,": (".", "1D05E022_Speakers.nsx"),
+    "hda:10ec0257,17aa3dcb,": ("17AA3DCB", "17AA3DCB_InternalSpeakers.nsx"),
+}
+
+
+def speaker_config(sink):
+    """Return the OEM settings directory and device file for active speakers."""
+    if sink.get("active_port") not in ("[Out] Speaker", "analog-output-speaker"):
+        return None
+    components = sink.get("properties", {}).get("alsa.components", "").lower().split()
+    for hardware, config in SPEAKER_CONFIGS.items():
+        if any(component.startswith(hardware) for component in components):
+            return config
+    return None
+
+
 def supported_speaker(sink):
-    return ("hda:14f11f87,1d05e022," in sink.get("properties", {}).get("alsa.components", "").lower()
-            and sink.get("active_port") == "[Out] Speaker")
+    return speaker_config(sink) is not None
 
 
 class DesktopAudio:
@@ -67,6 +83,7 @@ class DesktopAudio:
         streams = json.loads(pulse("--format=json", "list", "sink-inputs"))
         applications = [s for s in streams
                         if s.get("properties", {}).get("node.name") != self.sink + "_render"
+                        and not s.get("corked", False)
                         and s["sink"] == virtual["index"]]
         # Report the actual filter connection, including streams explicitly
         # assigned to speakers while another device is the system default.

@@ -2,6 +2,7 @@
 Description=Nahimic speaker effects
 Wants=pipewire.service pipewire-pulse.service wireplumber.service
 After=pipewire.service pipewire-pulse.service wireplumber.service
+PartOf=pipewire.service pipewire-pulse.service wireplumber.service
 StartLimitIntervalSec=120
 StartLimitBurst=3
 

@@ -38,7 +38,8 @@ public:
         if(failed())return E_FAIL;
         if(!mapped_)return fail("state mapping absent");
         if(!apo_volume_snapshot(mapped_, &state))return fail("incoherent state snapshot");
-        FILETIME now;GetSystemTimeAsFileTime(&now);
+        // Wine's coarse clock can lag a fresh CLOCK_REALTIME publication.
+        FILETIME now;GetSystemTimePreciseAsFileTime(&now);
         uint64_t ticks=(uint64_t(now.dwHighDateTime)<<32)|now.dwLowDateTime;
         if(state.magic!=APO_VOLUME_MAGIC || !state.valid || state.channels!=2 || state.muted>1 ||
            state.target[255]!=0 || target_!=state.target ||

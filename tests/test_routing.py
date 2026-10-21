@@ -76,6 +76,41 @@ class RoutingTest(unittest.TestCase):
         self.router.tick()
         self.assertFalse(json.loads((self.work / 'desktop-state.json').read_text())['active'])
 
+    def test_paused_stream_is_not_reported_as_active_playback(self):
+        self.streams[1]['corked'] = True
+        self.router.tick()
+        state = json.loads((self.work / 'desktop-state.json').read_text())
+        self.assertFalse(state['active'])
+        self.assertEqual(state['applications'], 0)
+        self.streams[1]['corked'] = False
+        self.router.tick()
+        self.assertTrue(json.loads((self.work / 'desktop-state.json').read_text())['active'])
+
+    def test_headphones_hdmi_and_bluetooth_never_receive_speaker_rendering(self):
+        before = copy.deepcopy(self.streams)
+        self.router.tick()
+        for name, port in (('headphones', 'analog-output-headphones'),
+                           ('hdmi', 'hdmi-output-0'), ('bluez_output.test', None)):
+            other = copy.deepcopy(self.physical)
+            other.update(name=name, index=40, active_port=port)
+            self.sinks.append(other)
+            self.streams[1]['sink'] = 40
+            self.router.tick()
+            state = json.loads((self.work / 'desktop-state.json').read_text())
+            self.assertFalse(state['active'])
+            self.assertEqual(self.streams[0], before[0])
+            self.assertEqual(self.streams[2], before[2])
+            self.sinks.remove(other)
+        self.streams[0]['sink'] = 40
+        with self.assertRaises(RuntimeError): self.router.tick()
+
+    def test_enabled_filter_is_disabled_after_speaker_port_disappears(self):
+        self.router.tick()
+        self.physical['active_port'] = 'analog-output-headphones'
+        with self.assertRaises(OutputUnavailable): self.router.tick()
+        self.router.close()
+        self.assertEqual([c.args[0][5] for c in self.run.call_args_list], ['false', 'true'])
+
     def test_speaker_removal_and_port_change_are_not_processing_targets(self):
         self.sinks.remove(self.physical)
         with self.assertRaises(OutputUnavailable): self.router.tick()
@@ -105,6 +140,13 @@ class RoutingTest(unittest.TestCase):
         self.assertFalse(linked_channels(graph, 'effect', 'speaker'))
         self.assertFalse(linked_channels(graph.replace('input_FR', 'input_FL'),
                                          'effect', 'speaker', render=False))
+
+
+class LenovoRoutingTest(RoutingTest):
+    def setUp(self):
+        super().setUp()
+        self.physical['active_port'] = 'analog-output-speaker'
+        self.physical['properties']['alsa.components'] = 'HDA:10ec0257,17aa3dcb,00100001'
 
 
 if __name__ == '__main__': unittest.main()

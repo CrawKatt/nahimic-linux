@@ -203,7 +203,7 @@ static bool product_ready(bool& ready){
     status("ReadProductReady",HRESULT_FROM_WIN32(result));if(result!=ERROR_SUCCESS)return false;
     ready=value==1;return true;
 }
-static bool configure_original(const wchar_t* apo_path,const wchar_t* root,const wchar_t* manual_device,const wchar_t* profile_id,HMODULE& library,ExpertControl*& expert) {
+static bool configure_original(const wchar_t* apo_path,const wchar_t* root,const wchar_t* device_file,const wchar_t* manual_device,const wchar_t* profile_id,HMODULE& library,ExpertControl*& expert) {
     if(!dedicated_prefix()){
         std::fprintf(stderr,"Configuration requires a dedicated Nahimic Wine prefix.\n");return false;
     }
@@ -229,7 +229,7 @@ static bool configure_original(const wchar_t* apo_path,const wchar_t* root,const
     BSTR product=SysAllocString(L"A-Volute.Nahimic");if(!product)return false;
     hr=expert->Setup(product);SysFreeString(product);status("ExpertSetup",hr);if(FAILED(hr))return false;
     if(!root)return true;
-    const wchar_t* files[]={L"Global.nsx",L"Devices\\1D05E022_Speakers.nsx",L"AudioProfiles\\Music.nsx",L"AudioProfiles\\Movie.nsx",L"AudioProfiles\\Gaming.nsx",L"AudioProfiles\\Communication.nsx"};
+    const wchar_t* files[]={L"Global.nsx",device_file,L"AudioProfiles\\Music.nsx",L"AudioProfiles\\Movie.nsx",L"AudioProfiles\\Gaming.nsx",L"AudioProfiles\\Communication.nsx"};
     for(unsigned i: {1u,2u,3u,4u,5u,0u}){
         if(i==0 && !initialize_profile_links(apo_path,profile_id))return false;
         path=std::wstring(root)+L"\\"+files[i];BSTR file=SysAllocString(path.c_str());if(!file)return false;
@@ -378,6 +378,7 @@ int wmain(int argc, wchar_t** argv) {
     const wchar_t* pcm_path=nullptr;
     const wchar_t* input_path=nullptr;
     const wchar_t* settings_root=nullptr;
+    const wchar_t* device_file=nullptr;
     const wchar_t* device_id=nullptr;
     const wchar_t* profile_id=nullptr;
     const wchar_t* pulse_target=nullptr;
@@ -395,6 +396,7 @@ int wmain(int argc, wchar_t** argv) {
         else if (wcscmp(argv[a],L"--input-pcm")==0 && a+1<argc) input_path=argv[++a];
         else if (wcscmp(argv[a],L"--process-pcm")==0 && a+1<argc) { if(pcm_path)invalid=true;pcm_path=argv[++a];discover=true;processing_file=true; }
         else if (wcscmp(argv[a],L"--settings-root")==0 && a+1<argc) settings_root=argv[++a];
+        else if (wcscmp(argv[a],L"--device-file")==0 && a+1<argc) device_file=argv[++a];
         else if (wcscmp(argv[a],L"--use-existing-settings")==0) existing_settings=true;
         else if (wcscmp(argv[a],L"--device-id")==0 && a+1<argc) device_id=argv[++a];
         else if (wcscmp(argv[a],L"--profile-id")==0 && a+1<argc) profile_id=argv[++a];
@@ -415,8 +417,8 @@ int wmain(int argc, wchar_t** argv) {
     if (pcm_path && selected<0) invalid=true;
     if (stdio_stream && (selected<0 || pcm_path || input_path)) invalid=true;
     if (processing_file!=(input_path!=nullptr)) invalid=true;
-    if ((device_id || profile_id) && !settings_root) invalid=true;
-    if (settings_root && !profile_id) invalid=true;
+    if ((device_file || device_id || profile_id) && !settings_root) invalid=true;
+    if (settings_root && (!device_file || !*device_file || !profile_id)) invalid=true;
     if(existing_settings && settings_root)invalid=true;
     GUID selected_profile{};
     if (profile_id && FAILED(CLSIDFromString(profile_id,&selected_profile))) invalid=true;
@@ -424,7 +426,7 @@ int wmain(int argc, wchar_t** argv) {
     if((application_path!=nullptr)!=(application_pid!=0))invalid=true;
     if(application_path && (!stdio_stream || selected!=0 || (!existing_settings && !settings_root) ||
        !*application_path || wcslen(application_path)>=250 || GetFileAttributesW(application_path)==INVALID_FILE_ATTRIBUTES))invalid=true;
-    if (invalid) { std::fprintf(stderr, "usage: apo_probe.exe ABSOLUTE_DLL_PATH [--discover] [--wine-setup-compat] [--class SFX|MFX|MFX_CAPTURE|EFX|CHAIN|POSTMIX] [--settings-root NSX_ROOT --profile-id GUID [--device-id GUID] | --use-existing-settings] [--process-impulse OUTPUT | --input-pcm INPUT --process-pcm OUTPUT | --stdio] [--application-path EXECUTABLE --application-pid PID (SFX stdio only)]\n"); return 2; }
+    if (invalid) { std::fprintf(stderr, "usage: apo_probe.exe ABSOLUTE_DLL_PATH [--discover] [--wine-setup-compat] [--class SFX|MFX|MFX_CAPTURE|EFX|CHAIN|POSTMIX] [--settings-root NSX_ROOT --device-file RELATIVE_NSX --profile-id GUID [--device-id GUID] | --use-existing-settings] [--process-impulse OUTPUT | --input-pcm INPUT --process-pcm OUTPUT | --stdio] [--application-path EXECUTABLE --application-pid PID (SFX stdio only)]\n"); return 2; }
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
     HRESULT hr=CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     status("CoInitializeEx", hr);
@@ -441,7 +443,7 @@ int wmain(int argc, wchar_t** argv) {
         std::fprintf(stderr,"Cannot bind native endpoint volume state\n");CoUninitialize();return 1;
     }
     HMODULE expert_library=nullptr;ExpertControl* expert=nullptr;
-    if ((settings_root || existing_settings) && !configure_original(argv[1],settings_root,device_id,profile_id,expert_library,expert)) {
+    if ((settings_root || existing_settings) && !configure_original(argv[1],settings_root,device_file,device_id,profile_id,expert_library,expert)) {
         if(expert)expert->Release();
         if(expert_library)FreeLibrary(expert_library);
         CoUninitialize();return 1;

@@ -14,7 +14,14 @@ from prepare_settings import prepare
 
 def wine_path(path):
     return 'Z:' + str(path).replace('/', '\\')
-from desktop_audio import DesktopAudio, OutputUnavailable, supported_speaker
+from desktop_audio import DesktopAudio, OutputUnavailable, speaker_config, supported_speaker
+
+def validate_session(previous, target, dll_sha256):
+    if (not previous.get('settings_initialized') or previous.get('target') != target['name']
+            or previous.get('original_dll_sha256') != dll_sha256
+            or speaker_config(target) is None
+            or speaker_config(previous.get('target_before', {})) != speaker_config(target)):
+        raise ValueError('Session settings, original DLL or physical device do not match')
 
 def linked_channels(listing, sink, target, monitor=None, render=True):
     """Require both directed stereo connections, including port identities."""
@@ -34,7 +41,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--exe', type=Path, required=True)
     parser.add_argument('--dll', type=Path, required=True)
-    parser.add_argument('--settings', type=Path, required=True)
+    parser.add_argument('--settings', type=Path, required=True, help='Factory root containing the supported OEM settings sets')
     parser.add_argument('--state-reader', type=Path, help='Native pulse_state executable; defaults to the host executable directory')
     parser.add_argument('--target', required=True, help='Exact physical speaker node name')
     parser.add_argument('--profile', choices=('Music', 'Movie', 'Gaming', 'Communication'))
@@ -62,8 +69,11 @@ def main():
     if len(matches) != 1:
         raise OutputUnavailable('The configured speaker output is unavailable')
     target = matches[0]
-    if not supported_speaker(target):
-        raise RuntimeError('This launcher currently verifies only the original 1D05E022 speaker endpoint')
+    config = speaker_config(target)
+    if config is None:
+        raise RuntimeError('No OEM configuration for this active speaker endpoint')
+    factory, device_file = config
+    original = (original / factory).resolve(strict=True)
     dll_sha256 = hashlib.sha256(dll.read_bytes()).hexdigest()
     if args.reuse_session:
         previous_path = args.reuse_session.resolve(strict=True)
@@ -76,14 +86,13 @@ def main():
     fcntl.flock(session_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     if args.reuse_session:
         previous = json.loads(previous_path.read_text())
-        if not previous.get('settings_initialized') or previous.get('target') != args.target or previous.get('original_dll_sha256') != dll_sha256:
-            raise ValueError('Session settings, original DLL or physical target do not match')
+        validate_session(previous, target, dll_sha256)
     settings = work / 'settings'
     if not args.reuse_session:
         if settings.exists():
             settings.rename(work / ('settings-previous-' + str(time.time_ns())))
         prepare(original, settings)
-    device = ET.parse(settings / 'Devices' / '1D05E022_Speakers.nsx').findtext('Data/ID/Value')
+    device = ET.parse(settings / 'Devices' / device_file).findtext('Data/ID/Value')
     profile_name = args.profile or 'Music'
     profile = ET.parse(settings / 'AudioProfiles' / f'{profile_name}.nsx').findtext('Data/ID/Value')
     if not device or not profile:
@@ -95,6 +104,7 @@ def main():
     desktop = None
     stopping = False
     state = {'pid': os.getpid(), 'target': args.target, 'profile': None if args.reuse_session else profile_name, 'reused_settings': bool(args.reuse_session), 'settings_initialized': bool(args.reuse_session), 'original_dll_sha256': dll_sha256, 'sink': sink, 'work': str(work), 'target_before': target, 'ready': False}
+    state.update(device_id=device, device_file=device_file, settings_source=str(original))
     state_path = work / 'session.json'
 
     def save():
@@ -132,7 +142,7 @@ def main():
             with (work / 'prefix-init.log').open('wb') as log:
                 subprocess.run(['wineboot', '--init'], env=env, stdout=log, stderr=log, timeout=90, check=True)
         volume_path = work / 'native-volume.state'
-        volume = start('volume', [str(state_reader), args.target, str(volume_path)], stdout=subprocess.DEVNULL)
+        volume = start('volume', [str(state_reader), args.target, str(volume_path), target['active_port']], stdout=subprocess.DEVNULL)
         deadline = time.monotonic() + 10
         while 'volume_state_ready' not in (work / 'volume.log').read_text(errors='replace'):
             if volume.poll() is not None:
@@ -143,7 +153,7 @@ def main():
                 raise TimeoutError('Native endpoint state initialization')
             time.sleep(0.05)
         state['volume_state'] = str(volume_path)
-        configuration = ['--use-existing-settings'] if args.reuse_session else ['--settings-root', wine_path(settings), '--device-id', device, '--profile-id', profile]
+        configuration = ['--use-existing-settings'] if args.reuse_session else ['--settings-root', wine_path(settings), '--device-file', 'Devices\\' + device_file, '--device-id', device, '--profile-id', profile]
         host = start('host', ['wine', str(exe), wine_path(dll), '--wine-setup-compat', '--class', 'CHAIN', *configuration, '--pulse-target', args.target, '--volume-state', wine_path(volume_path), '--stdio'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0)
         deadline = time.monotonic() + 45
         while 'stream_ready' not in (work / 'host.log').read_text(errors='replace'):
@@ -238,6 +248,7 @@ def main():
             subprocess.run(['wineserver', '-w'], env=env, check=True, timeout=10)
         state.update(ready=False, stopped=True, clean_shutdown=success, exit_codes={name: child.returncode for name, child in children.items()})
         save()
+        session_lock.close()
         print(f'Stopped; evidence: {state_path}', flush=True)
         if cleanup_error:
             raise RuntimeError(cleanup_error)

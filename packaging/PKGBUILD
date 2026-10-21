@@ -7,22 +7,25 @@ arch=('x86_64')
 url='https://github.com/wearzdk/nahimic-linux'
 license=('MIT' 'LicenseRef-Nahimic')
 depends=('python' 'pyside6' 'wine' 'pipewire' 'pipewire-pulse' 'wireplumber>=0.5' 'libpulse' 'systemd' 'hicolor-icon-theme' 'bash' 'glibc')
-makedepends=('mingw-w64-gcc' 'pkgconf' 'cabextract' 'git')
+makedepends=('mingw-w64-gcc' 'pkgconf' 'cabextract' 'innoextract' 'git')
 install=nahimic-linux.install
 options=('!strip' '!debug')
 source=("$pkgname::git+$url#tag=v$pkgver"
         'nahimic-apo4-4.14.cab::https://catalog.s.download.windowsupdate.com/d/msdownload/update/driver/drvs/2025/06/5038101c-bafc-45b6-b338-d086f6877059_8ba41f8fd185d004f674891c937eb6b815acb443.cab'
         'nahimic-runtime-settings.exe::https://nahimic.helprace.com/resources/SdHjE1CwBkqCwL1qTng83XvmSgyUM3WU8bA3F21ZCfca-wMam1lcLqCrQgAIHtE1DyfpwdnFPjQ5DuRdOgpXLg%7E%7E/GenericNahimicRestoreTool.exe'
+        'lenovo-ds575151-6.0.9879.1.exe::https://download.lenovo.com/consumer/mobiles/x7lo037f7bzmrbh0.exe'
         'nahimic-linux.install')
-noextract=('nahimic-apo4-4.14.cab' 'nahimic-runtime-settings.exe')
+noextract=('nahimic-apo4-4.14.cab' 'nahimic-runtime-settings.exe' 'lenovo-ds575151-6.0.9879.1.exe')
 sha256sums=('SKIP'
             'f3b1aae44826f85045cff8e085367dd8b48ffb3510e074adf552cc8eafbf8bde'
             '5f9c4d9eda54b7f946e331740354f01c043f25408d7053b4c23327c1b5b0a74a'
+            '495e008eb0d1c22a7c4bec6de74bff920759eecaffaaa384ec7c35157f8f0557'
             'f8206f52fd53c647e8ab1707545d5d977a2dd1495ba76b1f24abdb4faf35ce6e')
 
 prepare() {
     python "$srcdir/$pkgname/packaging/extract_runtime.py" \
-        "$srcdir/nahimic-apo4-4.14.cab" "$srcdir/nahimic-runtime-settings.exe" "$srcdir/runtime"
+        "$srcdir/nahimic-apo4-4.14.cab" "$srcdir/nahimic-runtime-settings.exe" \
+        "$srcdir/lenovo-ds575151-6.0.9879.1.exe" "$srcdir/runtime"
 }
 build() {
     make -C "$srcdir/$pkgname"

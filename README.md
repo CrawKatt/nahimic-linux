@@ -22,6 +22,8 @@ yay -S nahimic-linux
 
 目前已验证机械革命无界 14X Pro（Senary 声卡，子系统 ID `1D05E022`）的内置扬声器。需要 x86_64、PipeWire、PipeWire Pulse、WirePlumber 0.5 或更新版本，以及 systemd 用户会话。界面使用 Qt，支持 KDE、GNOME 及其他提供上述组件的桌面环境。音效自动附着于内置扬声器，系统中照常选择真实输出设备。切换到耳机、蓝牙或 HDMI 时使用对应设备的原有音频路径；切回扬声器后自动恢复音效。
 
+源码中还包含 **Lenovo LOQ 15IRX10 / 83JE** 支持，匹配 Realtek ALC257（`10EC:0257`，编解码器子系统 `17AA:3DCB`），保留联想 DS575151 中的设备配置和四种音效模式。用户已通过初步实机验证：内置扬声器音效正常工作，主观音质明显改善。稳定性验证仍在继续，尚未确认与 Windows OEM 音效一致。详见[设备审计与验证记录](docs/loq-15irx10.md)。
+
 ## 让 AI 帮你安装或适配
 
 可以直接把下面这段话发给 Claude Code、Codex 等 AI 编程助手：
@@ -48,7 +50,7 @@ journalctl --user -u nahimic.service -b
 
 ## 构建与安装
 
-AUR 的 `PKGBUILD` 位于 `packaging/`。构建依赖 MinGW-w64 GCC、C 编译器、pkg-config、libpulse、Python 和 cabextract。运行依赖 Wine、PySide6、PipeWire、PipeWire Pulse、WirePlumber 0.5+、libpulse、systemd。
+AUR 的 `PKGBUILD` 位于 `packaging/`。构建依赖 MinGW-w64 GCC、C 编译器、pkg-config、libpulse、Python、cabextract 和 innoextract。运行依赖 Wine、PySide6、PipeWire、PipeWire Pulse、WirePlumber 0.5+、libpulse、systemd。
 
 ```sh
 git clone https://aur.archlinux.org/nahimic-linux.git
@@ -56,7 +58,7 @@ cd nahimic-linux
 makepkg -si
 ```
 
-构建会从 Microsoft Update 和 Nahimic 官方支持站点获取固定版本组件，并验证归档及实际使用文件的 SHA-256。界面与宿主程序通过 `make` 构建，`make DESTDIR=/tmp/nahimic-stage install` 可检查系统包目录布局。完整安装以 PKGBUILD 为准。
+构建会从 Microsoft Update、Nahimic 官方支持站点和联想 DS575151 获取固定版本组件，并验证归档及实际使用文件的 SHA-256。界面与宿主程序通过 `make` 构建，`make DESTDIR=/tmp/nahimic-stage install` 可检查系统包目录布局。完整安装以 PKGBUILD 为准。
 
 ## 贡献设备适配
 

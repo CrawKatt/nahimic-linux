@@ -43,7 +43,9 @@ def prepare(source: Path, destination: Path):
         "translation": "Global.nsx + Metadata.nsx DefaultProfileId -> Data/DefaultProfileID",
         "originals": {
             str(p.relative_to(source)): hashlib.sha256(p.read_bytes()).hexdigest()
-            for p in sorted(source.rglob("*.nsx"))
+            for p in sorted([source / "Global.nsx", source / "Metadata.nsx",
+                             *(source / "Devices").glob("*.nsx"),
+                             *(source / "AudioProfiles").glob("*.nsx")])
         },
         "metadata": {e.tag: e.findtext("Value") for e in metadata.find("Data")},
     }
